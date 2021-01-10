@@ -1,8 +1,9 @@
 import json
 import os
+from lxml import etree
 from asyncio import sleep
 
-from hoshino import service, aiorequests, get_bot
+from hoshino import service, aiorequests
 
 sv = service.Service("steam", enable_on_default=True)
 
@@ -13,7 +14,13 @@ with open(config_file, mode="r") as f:
     cfg = json.loads(f)
 
 playing_state = {}
-
+async def format_id(id:str)->str:
+    if id.startswith('76561198') and len(id)==17:
+        return id
+    else:
+        resp= await aiorequests.get(f'https://steamcommunity.com/id/{id}?xml=1')
+        xml=etree.XML(await resp.content)
+        return xml.xpath('/profile/steamID64')[0].text
 
 @sv.on_prefix("添加steam订阅")
 async def steam(bot, ev):
@@ -62,6 +69,7 @@ async def steam(bot, ev):
 
 
 async def get_account_status(id) -> dict:
+    id=await format_id(id)
     params = {
         "key": cfg["key"],
         "format": "json",
@@ -93,6 +101,7 @@ async def update_game_status():
 
 
 async def update_steam_ids(steam_id, group):
+    steam_id=await format_id(steam_id)
     if steam_id not in cfg["subscribes"]:
         cfg["subscribes"][str(steam_id)] = []
     if group not in cfg["subscribes"][str(steam_id)]:
@@ -103,6 +112,7 @@ async def update_steam_ids(steam_id, group):
 
 
 async def del_steam_ids(steam_id, group):
+    steam_id=await format_id(steam_id)
     if group in cfg["subscribes"][str(steam_id)]:
         cfg["subscribes"][str(steam_id)].remove(group)
     with open(config_file, mode="w") as fil:
@@ -126,5 +136,5 @@ async def check_steam_status():
 
 async def broadcast(group_list: list, msg):
     for group in group_list:
-        await get_bot().send_group_msg(group_id=group, message=msg)
+        await sv.bot.send_group_msg(group_id=group, message=msg)
         await sleep(0.5)
