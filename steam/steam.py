@@ -27,6 +27,13 @@ async def steam(bot, ev):
     account = str(ev.message).strip()
     try:
         await update_steam_ids(account, ev["group_id"])
+        rsp = await get_account_status(account)
+        if rsp["personaname"] == "":
+            await bot.send(ev, "添加订阅失败！")
+        elif rsp["gameextrainfo"] == "":
+            await bot.send(ev, f"%s 没在玩游戏！" % rsp["personaname"])
+        else:
+            await bot.send(ev, f"%s 正在玩 %s ！" % (rsp["personaname"], rsp["gameextrainfo"]))
         await bot.send(ev, "订阅成功")
     except:
         await bot.send(ev, "订阅失败")
@@ -97,7 +104,7 @@ async def update_game_status():
             "personaname": friend["personaname"],
             "gameextrainfo": friend["gameextrainfo"] if "gameextrainfo" in friend else ""
         }
-    return playing_state
+
 
 
 async def update_steam_ids(steam_id, group):
@@ -126,15 +133,16 @@ async def check_steam_status():
     await update_game_status()
     for key, val in playing_state.items():
         if val["gameextrainfo"] != old_state[key]["gameextrainfo"]:
+            glist=set(cfg["subscribes"][key])&set((await sv.get_enable_groups()).keys())
             if val["gameextrainfo"] == "":
-                await broadcast(cfg["subscribes"][key],
+                await broadcast(glist,
                                 "%s 不玩 %s 了！" % (val["personaname"], old_state[key]["gameextrainfo"]))
             else:
-                await broadcast(cfg["subscribes"][key],
+                await broadcast(glist,
                                 "%s 正在游玩 %s ！" % (val["personaname"], val["gameextrainfo"]))
 
 
-async def broadcast(group_list: list, msg):
+async def broadcast(group_list: set, msg):
     for group in group_list:
         await sv.bot.send_group_msg(group_id=group, message=msg)
         await sleep(0.5)
